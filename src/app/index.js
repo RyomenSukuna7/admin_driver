@@ -1,5 +1,5 @@
-import AdminScreen from './screens/AdminScreen';
+import BusFormScreen from './screens/BusFormScreen';
 
-export default function Admin() {
-  return <AdminScreen />;
-} 
+export default function EnterTab() {
+  return <BusFormScreen mode="enter" />;
+}
