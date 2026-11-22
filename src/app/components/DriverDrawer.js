@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     Dimensions,
     Easing,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -13,14 +17,31 @@ import {
 import { colors } from '../../theme';
 
 const PANEL_W = Math.min(420, Dimensions.get('window').width * 0.9);
+const PLACEHOLDER = '#94a3b8';
 
-export default function DriverDrawer({ visible, value, onSave, onClose }) {
+// Keeps only the 10 digits of an Indian mobile number ("+91 98765 43210" -> "9876543210").
+function cleanPhone(text) {
+  let digits = text.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
+
+/**
+ * Side panel used for both adding and editing.
+ * fields: [{ key, label, placeholder?, required?, phone?, caps? }]
+ * value: the record being edited ({} when adding)
+ * onDelete: pass it only when editing something that can be removed
+ */
+export default function EditDrawer({ visible, title, fields, value, onSave, onDelete, onClose }) {
   const [draft, setDraft] = useState(value);
+  const [errors, setErrors] = useState({});
   const slide = useRef(new Animated.Value(PANEL_W)).current;
 
   useEffect(() => {
     if (visible) {
       setDraft(value);
+      setErrors({});
       slide.setValue(PANEL_W);
       Animated.timing(slide, {
         toValue: 0,
@@ -31,41 +52,91 @@ export default function DriverDrawer({ visible, value, onSave, onClose }) {
     }
   }, [visible]);
 
+  const setField = (key, text) => setDraft((d) => ({ ...d, [key]: text }));
+
+  const save = () => {
+    const clean = {};
+    const found = {};
+    for (const f of fields) {
+      const raw = (draft?.[f.key] ?? '').trim();
+      const v = f.phone ? cleanPhone(raw) : raw;
+      clean[f.key] = v;
+      if (f.required && !v) {
+        found[f.key] = `${f.label} is required`;
+      } else if (f.phone && v && !/^[6-9]\d{9}$/.test(v)) {
+        found[f.key] = 'Enter a 10-digit mobile number';
+      }
+    }
+    setErrors(found);
+    if (Object.keys(found).length === 0) onSave({ ...draft, ...clean });
+  };
+
+  const confirmDelete = () => {
+    Alert.alert('Remove this student?', 'Their parents will stop getting updates.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: onDelete },
+    ]);
+  };
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.root}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
         <Animated.View style={[styles.panel, { transform: [{ translateX: slide }] }]}>
-          <View style={styles.head}>
-            <Text style={styles.title}>Edit driver</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
-              <Text style={styles.close}>×</Text>
-            </Pressable>
-          </View>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.head}>
+              <Text style={styles.title}>{title}</Text>
+              <Pressable onPress={onClose} hitSlop={10}>
+                <Text style={styles.close}>×</Text>
+              </Pressable>
+            </View>
 
-          <View style={styles.body}>
-            <Text style={styles.label}>Driver name</Text>
-            <TextInput
-              style={styles.input}
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Type the driver's full name"
-              placeholderTextColor="#94a3b8"
-            />
-          </View>
-
-          <View style={styles.actions}>
-            <Pressable onPress={onClose} style={[styles.btn, styles.btnGhost]}>
-              <Text style={styles.btnGhostText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => onSave(draft.trim())}
-              style={[styles.btn, styles.btnPrimary]}
+            <ScrollView
+              style={styles.body}
+              contentContainerStyle={styles.bodyContent}
+              keyboardShouldPersistTaps="handled"
             >
-              <Text style={styles.btnPrimaryText}>Save changes</Text>
-            </Pressable>
-          </View>
+              {fields.map((f, i) => (
+                <View key={f.key} style={styles.field}>
+                  <Text style={styles.label}>
+                    {f.label}
+                    {f.required ? <Text style={styles.star}> *</Text> : null}
+                  </Text>
+                  <TextInput
+                    style={[styles.input, errors[f.key] && styles.inputError]}
+                    value={draft?.[f.key] ?? ''}
+                    onChangeText={(text) => setField(f.key, text)}
+                    placeholder={f.placeholder}
+                    placeholderTextColor={PLACEHOLDER}
+                    keyboardType={f.phone ? 'phone-pad' : 'default'}
+                    maxLength={f.phone ? 15 : undefined}
+                    autoCapitalize={f.phone ? 'none' : f.caps ?? 'words'}
+                    autoFocus={i === 0}
+                  />
+                  {errors[f.key] ? <Text style={styles.error}>{errors[f.key]}</Text> : null}
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.actions}>
+              {onDelete ? (
+                <Pressable onPress={confirmDelete} style={[styles.btn, styles.btnDanger]}>
+                  <Text style={styles.btnDangerText}>Remove</Text>
+                </Pressable>
+              ) : null}
+              <View style={{ flex: 1 }} />
+              <Pressable onPress={onClose} style={[styles.btn, styles.btnGhost]}>
+                <Text style={styles.btnGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={save} style={[styles.btn, styles.btnPrimary]}>
+                <Text style={styles.btnPrimaryText}>Save</Text>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
         </Animated.View>
       </View>
     </Modal>
@@ -113,13 +184,20 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    padding: 20,
   },
+  bodyContent: {
+    padding: 20,
+    gap: 16,
+  },
+  field: {},
   label: {
     color: colors.ink,
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 6,
+  },
+  star: {
+    color: colors.teal,
   },
   input: {
     height: 44,
@@ -131,9 +209,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink,
   },
+  inputError: {
+    borderColor: '#dc2626',
+  },
+  error: {
+    color: '#dc2626',
+    fontSize: 12,
+    marginTop: 4,
+  },
   actions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: 10,
     paddingVertical: 16,
     paddingHorizontal: 20,
@@ -155,6 +241,14 @@ const styles = StyleSheet.create({
   },
   btnGhostText: {
     color: colors.ink,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  btnDanger: {
+    paddingHorizontal: 4,
+  },
+  btnDangerText: {
+    color: '#dc2626',
     fontSize: 14,
     fontWeight: '700',
   },

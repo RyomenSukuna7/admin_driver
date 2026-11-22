@@ -1,5 +1,5 @@
 import BusFormScreen from './screens/BusFormScreen';
 
-export default function EnterTab() {
-  return <BusFormScreen mode="enter" />;
+export default function BusTab() {
+  return <BusFormScreen />;
 }
