@@ -4,11 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme';
 
 const TABS = [
-  { name: 'index', href: '/', label: 'Enter', focused: 'create', idle: 'create-outline' },
-  { name: 'update', href: '/update', label: 'Update', focused: 'pencil', idle: 'pencil-outline' },
+  { name: 'index', href: '/', label: 'Bus', focused: 'bus', idle: 'bus-outline' },
+  // More tabs (Today, Drivers) go here later.
 ];
 
 function DockTabBar({ state }) {
+  if (TABS.length < 2) return null; // no tab bar needed for a single screen
   const activeName = state.routes[state.index].name;
 
   return (
@@ -53,7 +54,7 @@ export default function RootLayout() {
         unmountOnBlur: true,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Enter' }} />
+      <Tabs.Screen name="index" options={{ title: 'Bus' }} />
       <Tabs.Screen name="update" options={{ title: 'Update' }} />
     </Tabs>
   );
